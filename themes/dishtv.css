@@ -1,0 +1,48 @@
+/*
+ * themes/dishtv.css — DishTV brand overrides
+ *
+ * Applied via the .theme-dishtv class on <body>.
+ * The base CSS variable definitions live in sidepanel.css.
+ * This file exists as an extension point for deeper DishTV-specific
+ * component overrides beyond what the variable set provides.
+ */
+
+.theme-dishtv {
+  /* Brand variables already defined in sidepanel.css .theme-dishtv block.
+     Add component-level overrides below as the extension grows. */
+
+  /* Logo mark background matches brand red */
+  --logo-mark-bg: #E31837;
+}
+
+/* ─── DishTV-specific component adjustments ─────────────────────────────── */
+
+.theme-dishtv .logo-mark {
+  background: var(--primary);
+  letter-spacing: -0.5px;
+}
+
+/* Feature button hover accent tint */
+.theme-dishtv .feature-btn:hover {
+  border-color: rgba(227, 24, 55, 0.35);
+}
+
+/* Primary button */
+.theme-dishtv .btn-primary {
+  background: linear-gradient(135deg, #E31837 0%, #c0102d 100%);
+}
+
+/* Input focus ring */
+.theme-dishtv input:focus {
+  box-shadow: 0 0 0 2px rgba(227, 24, 55, 0.2);
+}
+
+/* Section label live dot — keep green for visibility on red theme */
+.theme-dishtv .live-dot {
+  background: #22c55e;
+}
+
+/* Form section title */
+.theme-dishtv .form-section-title {
+  color: #ff6b85;
+}

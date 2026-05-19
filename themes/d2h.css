@@ -1,0 +1,47 @@
+/*
+ * themes/d2h.css — D2H brand overrides
+ *
+ * Applied via the .theme-d2h class on <body>.
+ * The base CSS variable definitions live in sidepanel.css.
+ * This file exists as an extension point for deeper D2H-specific
+ * component overrides beyond what the variable set provides.
+ */
+
+.theme-d2h {
+  /* Brand variables already defined in sidepanel.css .theme-d2h block.
+     Add component-level overrides below as the extension grows. */
+
+  --logo-mark-bg: #003087;
+}
+
+/* ─── D2H-specific component adjustments ────────────────────────────────── */
+
+.theme-d2h .logo-mark {
+  background: var(--primary);
+  content: 'D2';
+}
+
+/* Feature button hover accent tint */
+.theme-d2h .feature-btn:hover {
+  border-color: rgba(0, 48, 135, 0.5);
+}
+
+/* Primary button */
+.theme-d2h .btn-primary {
+  background: linear-gradient(135deg, #1a4fb5 0%, #003087 100%);
+}
+
+/* Input focus ring */
+.theme-d2h input:focus {
+  box-shadow: 0 0 0 2px rgba(26, 79, 181, 0.25);
+}
+
+/* Section label live dot */
+.theme-d2h .live-dot {
+  background: #22c55e;
+}
+
+/* Form section title */
+.theme-d2h .form-section-title {
+  color: #60a5fa;
+}

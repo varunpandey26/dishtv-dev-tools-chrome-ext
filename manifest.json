@@ -1,0 +1,77 @@
+{
+  "manifest_version": 3,
+  "name": "SADIST's Ext - Project Dish",
+  "version": "1.0.0",
+  "description": "Internal developer productivity tools for DishTV and D2H teams.",
+
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs",
+    "activeTab",
+    "webRequest",
+    "cookies",
+    "debugger"
+  ],
+
+  "host_permissions": [
+    "<all_urls>"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+
+  "action": {
+    "default_title": "SADIST's Ext - Project Dish",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.dishtv.in/*",
+        "https://stage-aem.dishtv.in/*",
+        "https://dev-aem.dishtv.in/*"
+      ],
+      "js": ["content-scripts/dishtv-login.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.d2h.com/*",
+        "https://stage-aem.d2h.com/*",
+        "https://dev-aem.d2h.com/*"
+      ],
+      "js": ["content-scripts/d2h-login.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.dishtv.in/*",
+        "https://stage-aem.dishtv.in/*",
+        "https://dev-aem.dishtv.in/*",
+        "https://www.d2h.com/*",
+        "https://stage-aem.d2h.com/*",
+        "https://dev-aem.d2h.com/*"
+      ],
+      "js": ["content-scripts/user-state.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
