@@ -350,34 +350,43 @@ code, pre {
 
 .aem-actions-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
+  width: 100%;
 }
 
-.aem-btn {
+.aem-actions-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 3fr;
+  gap: 6px;
   width: 100%;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: none;
+  margin-top: 6px;
+}
+
+.aem-action-btn {
+  width: 100%;
   background: var(--accent-container);
   color: var(--accent);
-  font-family: var(--font);
-  font-size: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 11px;
   font-weight: 500;
+  padding: 7px 0;
   cursor: pointer;
-  transition: all 0.2s ease;
+  text-align: center;
+  transition: background 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font);
 }
 
-.aem-btn:hover:not(:disabled) {
-  filter: brightness(0.92);
+.aem-action-btn:hover:not(:disabled) {
+  background: var(--accent-light);
 }
 
-.aem-btn:active:not(:disabled) {
-  filter: brightness(0.85);
-}
-
-.aem-btn:disabled {
-  opacity: 0.38;
+.aem-action-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -387,17 +396,8 @@ code, pre {
   pointer-events: none;
 }
 
-/* Live button row — hidden by default, shown only on author domain with known brand */
-.aem-live-row {
-  margin-top: 6px;
-}
-
-.aem-live-row-hidden {
+.aem-live-hidden {
   display: none;
-}
-
-.aem-btn-live {
-  width: 100%;
 }
 
 .aem-hint {
@@ -889,6 +889,25 @@ input[type="url"]::placeholder {
   color: var(--text-muted);
 }
 
+.btn-flush {
+  width: 100%;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 0;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Roboto', sans-serif;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: background 0.2s ease;
+}
+
+.btn-flush:hover {
+  background: #b91c1c;
+}
+
 /* ─── Collapsible Cards ──────────────────────────────────────────────────── */
 .collapsible-card {
   background: var(--bg-surface);
@@ -1037,11 +1056,22 @@ input[type="url"]::placeholder {
   max-width: 100%;
 }
 
-.bookmark-tile .tile-badge {
+.tile-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-self: stretch;
+  justify-content: flex-start;
+}
+
+.tile-badge {
   font-size: 9px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 2px 6px;
   border-radius: 999px;
+  line-height: 1.4;
+  flex-shrink: 0;
 }
 
 .badge-pre {
@@ -1052,6 +1082,21 @@ input[type="url"]::placeholder {
 .badge-post {
   background: #fef3c7;
   color: #92400e;
+}
+
+.badge-prod {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge-stage {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.badge-dev {
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 .bookmark-tile .tile-delete {
@@ -1182,8 +1227,41 @@ input[type="url"]::placeholder {
   margin-top: -6px;
 }
 
-.bm-vc-hidden {
-  display: none;
+.bookmark-type-select {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'Roboto', sans-serif;
+  color: var(--text);
+  background: var(--bg-surface);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.bookmark-type-select:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.bookmark-vc-input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'Roboto', sans-serif;
+  color: var(--text);
+  background: var(--bg-surface);
+  box-sizing: border-box;
+}
+
+.bookmark-vc-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 /* ─── Live Section ───────────────────────────────────────────────────────── */

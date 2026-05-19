@@ -65,5 +65,30 @@ window.addEventListener('storage', (e) => {
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'REQUEST_USER_STATE') {
     reportUserState();
+    return;
+  }
+
+  if (message.type === 'FLUSH_SESSION') {
+    localStorage.removeItem('userDetails');
+    localStorage.removeItem('user');
+
+    document.cookie =
+      'userloggedin=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+
+    const domain = window.location.hostname;
+    document.cookie =
+      `userloggedin=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain}`;
+    document.cookie =
+      `userloggedin=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${domain}`;
+
+    chrome.runtime.sendMessage({
+      type: 'USER_STATE_UPDATE',
+      loggedIn: false,
+      sourceUrl: window.location.href,
+    });
+
+    setTimeout(() => {
+      location.reload();
+    }, 500);
   }
 });

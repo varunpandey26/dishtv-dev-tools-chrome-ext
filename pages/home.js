@@ -29,6 +29,19 @@ const AUTHOR_ENV_BY_DOMAIN = Object.fromEntries(
   Object.entries(AUTHOR_DOMAIN_BY_ENV).map(([env, host]) => [host, env])
 );
 
+const DAM_PATHS = {
+  dishtv: '/assets.html/content/dam/dishtv-aem-web-platform',
+  d2h:    '/assets.html/content/dam/d2h',
+};
+
+const AUTHOR_DOMAINS = {
+  dev:   'author-p116268-e1141504.adobeaemcloud.com',
+  stage: 'author-p116268-e1198031.adobeaemcloud.com',
+  prod:  'author-p116268-e1198030.adobeaemcloud.com',
+};
+
+const PACKMGR_PATH = '/crx/packmgr/index.jsp';
+
 const CONTENT_PREFIX = {
   dishtv: '/content/dishtv/us/en',
   d2h:    '/content/d2h/us/en/homepage',
@@ -89,22 +102,39 @@ function saveLoginRecents(recents, key) {
 
 // ─── Bookmark storage ─────────────────────────────────────────────────────
 
-const BOOKMARKS_KEY = 'bookmarks';
 const BOOKMARKS_MAX = 8;
 
-/** @returns {Promise<Array>} */
-function getBookmarks() {
+function getBookmarksKey(site) {
+  if (site === 'dishtv') return 'bookmarks_dishtv';
+  if (site === 'd2h')    return 'bookmarks_d2h';
+  return null;
+}
+
+/** @param {'dishtv'|'d2h'|'unknown'} site @returns {Promise<Array>} */
+function getBookmarks(site) {
+  const key = getBookmarksKey(site);
+  if (!key) return Promise.resolve([]);
   return new Promise((resolve) => {
-    chrome.storage.local.get(BOOKMARKS_KEY, (result) => {
-      resolve(Array.isArray(result[BOOKMARKS_KEY]) ? result[BOOKMARKS_KEY] : []);
+    chrome.storage.local.get(key, (result) => {
+      resolve(Array.isArray(result[key]) ? result[key] : []);
     });
   });
 }
 
-/** @param {Array} bookmarks @returns {Promise<void>} */
-function saveBookmarks(bookmarks) {
+/** @param {'dishtv'|'d2h'|'unknown'} site @param {Array} bookmarks @returns {Promise<void>} */
+function saveBookmarks(site, bookmarks) {
+  const key = getBookmarksKey(site);
+  if (!key) return Promise.resolve();
   return new Promise((resolve) => {
-    chrome.storage.local.set({ [BOOKMARKS_KEY]: bookmarks }, resolve);
+    chrome.storage.local.set({ [key]: bookmarks }, resolve);
+  });
+}
+
+function migrateOldBookmarks() {
+  chrome.storage.local.get('bookmarks', (result) => {
+    if (result.bookmarks && result.bookmarks.length > 0) {
+      chrome.storage.local.remove('bookmarks');
+    }
   });
 }
 
@@ -184,12 +214,13 @@ function analyzeUrl(tabUrl) {
 
     let authorUrls = null;
     if (contentPath) {
-      const domain    = AUTHOR_DOMAIN_BY_ENV[authorEnv];
-      const adminPath = contentPath.endsWith('.html') ? contentPath.slice(0, -5) : contentPath;
+      const domain         = AUTHOR_DOMAIN_BY_ENV[authorEnv];
+      const adminPath      = contentPath.endsWith('.html') ? contentPath.slice(0, -5) : contentPath;
+      const propertiesPath = contentPath.endsWith('.html') ? contentPath.slice(0, -5) : contentPath;
       authorUrls = {
         edit:       `https://${domain}/editor.html${contentPath}.html`,
         admin:      `https://${domain}/sites.html${adminPath}`,
-        properties: `https://${domain}/mnt/overlay/wcm/core/content/sites/properties.html?item=${encodeURIComponent(contentPath)}`,
+        properties: `https://${domain}/mnt/overlay/wcm/core/content/sites/properties.html?item=${encodeURIComponent(propertiesPath)}`,
       };
     }
 
@@ -210,12 +241,14 @@ function analyzeUrl(tabUrl) {
     const prefix    = CONTENT_PREFIX[site];
     const domain    = AUTHOR_DOMAIN_BY_ENV[env];
     const adminPath = pagePath.endsWith('.html') ? pagePath.slice(0, -5) : pagePath;
+    const fullPath  = prefix + pagePath;
+    const cleanPath = fullPath.endsWith('.html') ? fullPath.slice(0, -5) : fullPath;
     return {
       isAuthor: false, env, brand: site, mode: 'publish',
       authorUrls: {
         edit:       `https://${domain}/editor.html${prefix}${pagePath}.html`,
         admin:      `https://${domain}/sites.html${prefix}${adminPath}`,
-        properties: `https://${domain}/mnt/overlay/wcm/core/content/sites/properties.html?item=${encodeURIComponent(prefix + pagePath)}`,
+        properties: `https://${domain}/mnt/overlay/wcm/core/content/sites/properties.html?item=${encodeURIComponent(cleanPath)}`,
       },
       liveUrl: null,
     };
@@ -239,6 +272,84 @@ function syncActivePills(container, activeSite, activeEnv) {
   });
 }
 
+/** Resolve brand for DAM link from author path or publish env detection. */
+function resolveDamSite(tabUrl, ctx) {
+  if (ctx?.isAuthor) {
+    try {
+      const { pathname } = new URL(tabUrl);
+      if (pathname.includes('/content/dam/d2h') || pathname.includes('/content/d2h/')) {
+        return 'd2h';
+      }
+      if (pathname.includes('/content/dam/dishtv') || pathname.includes('/content/dishtv/')) {
+        return 'dishtv';
+      }
+    } catch { /* fall through */ }
+    if (ctx.brand !== 'unknown') return ctx.brand;
+  }
+  return detectEnv(tabUrl).site;
+}
+
+/** @returns {string | null} */
+function buildDamUrl(site, env) {
+  const damPath = DAM_PATHS[site];
+  if (!damPath || site === 'unknown' || env === 'unknown') return null;
+  const authorDomain = AUTHOR_DOMAINS[env] || AUTHOR_DOMAINS.stage;
+  return `https://${authorDomain}${damPath}`;
+}
+
+/** @returns {'dev'|'stage'|'prod'|'unknown'} */
+function resolveAemEnv(tabUrl, ctx) {
+  if (ctx?.env && ctx.env !== 'unknown') return ctx.env;
+  try {
+    const hostname = new URL(tabUrl).hostname;
+    if (AUTHOR_ENV_BY_DOMAIN[hostname]) return AUTHOR_ENV_BY_DOMAIN[hostname];
+  } catch { /* ignore */ }
+  return detectEnv(tabUrl).env;
+}
+
+/** @returns {string | null} */
+function buildPackmgrUrl(env) {
+  if (env === 'unknown') return null;
+  const authorDomain = AUTHOR_DOMAINS[env] || AUTHOR_DOMAINS.stage;
+  return `https://${authorDomain}${PACKMGR_PATH}`;
+}
+
+function updatePackmgrButton(packmgrBtn, tabUrl, ctx) {
+  if (!packmgrBtn) return;
+  const env = resolveAemEnv(tabUrl, ctx);
+  const packmgrUrl = buildPackmgrUrl(env);
+
+  if (packmgrUrl) {
+    packmgrBtn.disabled = false;
+    packmgrBtn.dataset.url = packmgrUrl;
+  } else {
+    packmgrBtn.disabled = true;
+    delete packmgrBtn.dataset.url;
+  }
+}
+
+function updateDamButton(damBtn, tabUrl, ctx) {
+  if (!damBtn) return;
+
+  const env  = (ctx?.env && ctx.env !== 'unknown') ? ctx.env : detectEnv(tabUrl).env;
+  const site = resolveDamSite(tabUrl, ctx);
+  const damUrl = buildDamUrl(site, env);
+
+  if (damUrl) {
+    damBtn.disabled = false;
+    damBtn.dataset.url = damUrl;
+    damBtn.style.opacity = '';
+    damBtn.style.cursor = '';
+    damBtn.style.pointerEvents = '';
+  } else {
+    damBtn.disabled = true;
+    delete damBtn.dataset.url;
+    damBtn.style.opacity = '0.4';
+    damBtn.style.cursor = 'not-allowed';
+    damBtn.style.pointerEvents = 'none';
+  }
+}
+
 function updateAemActions(container, tabUrl) {
   const actions = container.querySelector('#aem-actions');
   if (!actions) return;
@@ -246,10 +357,13 @@ function updateAemActions(container, tabUrl) {
   const adminBtn = actions.querySelector('#aem-admin');
   const editBtn  = actions.querySelector('#aem-edit');
   const propsBtn = actions.querySelector('#aem-props');
-  const liveRow  = actions.querySelector('#aem-live-row');
-  const liveBtn  = actions.querySelector('#aem-live');
-  const hint     = actions.querySelector('#aem-hint');
-  const ctx      = analyzeUrl(tabUrl);
+  const damBtn      = actions.querySelector('#aem-dam');
+  const packmgrBtn  = actions.querySelector('#aem-packmgr');
+  const liveBtn     = actions.querySelector('#aem-live');
+  const hint        = actions.querySelector('#aem-hint');
+  const ctx         = analyzeUrl(tabUrl);
+
+  updatePackmgrButton(packmgrBtn, tabUrl, ctx);
 
   if (!ctx || !ctx.authorUrls) {
     [adminBtn, editBtn, propsBtn].forEach((b) => {
@@ -257,8 +371,9 @@ function updateAemActions(container, tabUrl) {
       b.classList.remove('aem-btn-faded');
       delete b.dataset.url;
     });
+    updateDamButton(damBtn, tabUrl, ctx);
     hint.classList.remove('aem-hint-hidden');
-    liveRow.classList.add('aem-live-row-hidden');
+    liveBtn?.classList.add('aem-live-hidden');
     return;
   }
 
@@ -279,11 +394,13 @@ function updateAemActions(container, tabUrl) {
 
   if (ctx.isAuthor && ctx.brand !== 'unknown' && ctx.liveUrl) {
     liveBtn.dataset.url = ctx.liveUrl;
-    liveRow.classList.remove('aem-live-row-hidden');
+    liveBtn?.classList.remove('aem-live-hidden');
   } else {
     delete liveBtn.dataset.url;
-    liveRow.classList.add('aem-live-row-hidden');
+    liveBtn?.classList.add('aem-live-hidden');
   }
+
+  updateDamButton(damBtn, tabUrl, ctx);
 }
 
 /** Show login section only for stage/dev */
@@ -416,16 +533,34 @@ function aemActionsHTML() {
   return `
     <div class="aem-actions" id="aem-actions">
       <div class="aem-actions-row">
-        <button class="aem-btn" id="aem-admin"  disabled>Admin</button>
-        <button class="aem-btn" id="aem-edit"   disabled>Edit</button>
-        <button class="aem-btn" id="aem-props"  disabled>Properties</button>
+        <button class="aem-btn aem-action-btn" id="aem-admin"  disabled>Admin</button>
+        <button class="aem-btn aem-action-btn" id="aem-edit"   disabled>Edit</button>
+        <button class="aem-btn aem-action-btn" id="aem-props"  disabled>Properties</button>
+        <button class="aem-btn aem-action-btn" id="aem-dam" disabled>DAM</button>
       </div>
-      <div class="aem-live-row aem-live-row-hidden" id="aem-live-row">
-        <button class="aem-btn aem-btn-live" id="aem-live">🌐 Live</button>
+      <div class="aem-actions-row-2">
+        <button class="aem-btn aem-action-btn" id="aem-packmgr" disabled>Packmgr</button>
+        <button class="aem-btn aem-btn-live aem-action-btn aem-live-hidden" id="aem-live">🌐 Live</button>
       </div>
       <p class="aem-hint" id="aem-hint">Not on a recognized page</p>
     </div>
   `;
+}
+
+function flushSessionButtonHTML() {
+  return '<button type="button" class="btn-flush" id="btn-flush-session">Flush Session</button>';
+}
+
+function wireFlushSessionButton(root) {
+  const btn = root?.querySelector('#btn-flush-session');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs?.[0]?.id) return;
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'FLUSH_SESSION' });
+    });
+  });
 }
 
 function loginSectionHTML() {
@@ -447,6 +582,7 @@ function loginSectionHTML() {
           <button class="login-submit-btn" id="login-submit" disabled>→</button>
         </div>
         <p class="login-status-bar" id="login-status-bar"></p>
+        ${flushSessionButtonHTML()}
       </div>
       <div id="logged-in-view" class="login-section-hidden"></div>
     </div>
@@ -606,6 +742,7 @@ function loggedInHTMLD2H(u) {
       ${collapsibleCard('Account Status', accountBody,  false)}
       ${collapsibleCard('Plan & Zone',    planBody,     false)}
       ${collapsibleCard('Multi VC',       mvcBody,      false)}
+      ${flushSessionButtonHTML()}
     </div>
   `;
 }
@@ -675,6 +812,7 @@ function loggedInHTML(u) {
       ${collapsibleCard('Account Status', accountBody,  false)}
       ${collapsibleCard('Plan & Zone',    planBody,     false)}
       ${collapsibleCard('Multi VC',       mvcBody,      false)}
+      ${flushSessionButtonHTML()}
     </div>
   `;
 }
@@ -682,6 +820,7 @@ function loggedInHTML(u) {
 function renderLoginState(container, recentsKey) {
   container.querySelector('#login-form-view')?.classList.remove('login-section-hidden');
   container.querySelector('#logged-in-view')?.classList.add('login-section-hidden');
+  wireFlushSessionButton(container.querySelector('#login-form-view'));
   getLoginRecents(recentsKey).then((recents) => renderLoginRecents(container, recents, recentsKey));
 }
 
@@ -703,6 +842,8 @@ function renderLoggedInState(container, userDetails, site) {
       arrow.classList.toggle('open', wasHidden);
     });
   });
+
+  wireFlushSessionButton(view);
 }
 
 // ─── Bookmark tile HTML ───────────────────────────────────────────────────
@@ -710,46 +851,135 @@ function renderLoggedInState(container, userDetails, site) {
 function bookmarkTileHTML(bookmark) {
   const badgeCls = bookmark.type === 'prelogin' ? 'badge-pre' : 'badge-post';
   const badgeTxt = bookmark.type === 'prelogin' ? 'PRE' : 'POST';
+
+  const { env } = detectEnv(bookmark.url);
+  const envBadgeMap = {
+    prod:  { cls: 'badge-prod',  txt: 'P' },
+    stage: { cls: 'badge-stage', txt: 'S' },
+    dev:   { cls: 'badge-dev',   txt: 'D' },
+  };
+  const envBadge = envBadgeMap[env];
+  const envBadgeHTML = envBadge
+    ? `<span class="tile-badge ${envBadge.cls}">${envBadge.txt}</span>`
+    : '';
+
   return `
     <div class="bookmark-tile" data-id="${escapeHtml(bookmark.id)}">
       <span class="tile-name">${escapeHtml(bookmark.name)}</span>
-      <span class="tile-badge ${badgeCls}">${badgeTxt}</span>
+      <div class="tile-badges">
+        <span class="tile-badge ${badgeCls}">${badgeTxt}</span>
+        ${envBadgeHTML}
+      </div>
       <span class="tile-delete" data-delete="${escapeHtml(bookmark.id)}">✕</span>
     </div>
   `;
 }
 
-// ─── Handle bookmark click ────────────────────────────────────────────────
+// ─── Bookmark click + login URL ───────────────────────────────────────────
 
-function handleBookmarkClick(bookmark, setPending) {
+function getLoginUrl(site, currentTabUrl) {
+  try {
+    const url = new URL(currentTabUrl);
+    if (site === 'd2h') {
+      return `${url.origin}/login.html`;
+    }
+    return `${url.origin}/`;
+  } catch (e) {
+    const domains = {
+      dishtv: 'https://stage-aem.dishtv.in/',
+      d2h:    'https://stage-aem.d2h.com/login.html',
+    };
+    return domains[site] || '/';
+  }
+}
+
+function handleBookmarkClick(bookmark) {
   if (bookmark.type === 'prelogin') {
     chrome.tabs.create({ url: bookmark.url });
     return;
   }
 
-  const bookmarkSite = detectEnv(bookmark.url).site;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs || !tabs[0]) {
+      chrome.tabs.create({ url: bookmark.url });
+      return;
+    }
 
-  chrome.tabs.create({ url: bookmark.url }, (tab) => {
-    setPending({ tabId: tab.id, vcNumber: bookmark.vcNumber, brand: bookmarkSite });
+    const tabId  = tabs[0].id;
+    const tabUrl = tabs[0].url;
+    const { site, env } = detectEnv(bookmark.url);
 
-    const onTabUpdate = (id, changeInfo) => {
-      if (id !== tab.id || changeInfo.status !== 'complete') return;
-      chrome.tabs.onUpdated.removeListener(onTabUpdate);
-      chrome.tabs.sendMessage(tab.id, { type: 'REQUEST_USER_STATE' }).catch(() => {
-        setPending(null);
-        const loginType = bookmarkSite === 'd2h' ? 'D2H_LOGIN_INIT' : 'DISHTV_LOGIN_INIT';
-        chrome.runtime.sendMessage({ type: loginType, number: bookmark.vcNumber });
-      });
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: 'REQUEST_USER_STATE' },
+      () => {
+        if (chrome.runtime.lastError) {
+          chrome.tabs.create({ url: bookmark.url });
+        }
+      }
+    );
+
+    const stateListener = (message) => {
+      if (message.type !== 'USER_STATE_UPDATE') return;
+      try {
+        if (new URL(message.sourceUrl || '').hostname !== new URL(tabUrl).hostname) return;
+      } catch { return; }
+
+      chrome.runtime.onMessage.removeListener(stateListener);
+
+      if (message.loggedIn) {
+        chrome.tabs.create({ url: bookmark.url });
+        return;
+      }
+
+      if (!bookmark.vcNumber) {
+        chrome.tabs.create({ url: bookmark.url });
+        return;
+      }
+
+      const loginUrl = getLoginUrl(site, bookmark.url);
+      chrome.tabs.update(tabId, { url: loginUrl });
+
+      const loginListener = (msg) => {
+        if (msg.type !== 'DISHTV_LOGIN_STATUS' && msg.type !== 'D2H_LOGIN_STATUS') return;
+        if (msg.status === 'success') {
+          chrome.runtime.onMessage.removeListener(loginListener);
+          chrome.tabs.update(tabId, { url: bookmark.url });
+        } else if (
+          msg.status === 'error' ||
+          msg.status === 'timeout' ||
+          msg.status === 'otp_failed'
+        ) {
+          chrome.runtime.onMessage.removeListener(loginListener);
+          if (homeContainerRef) {
+            showLoginStatus(homeContainerRef, 'Login failed. Could not open page.', 'error');
+          }
+        }
+      };
+      chrome.runtime.onMessage.addListener(loginListener);
+
+      const tabLoadListener = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(tabLoadListener);
+          setTimeout(() => {
+            chrome.runtime.sendMessage({
+              type:   site === 'd2h' ? 'D2H_LOGIN_INIT' : 'DISHTV_LOGIN_INIT',
+              number: bookmark.vcNumber,
+            });
+          }, 1500);
+        }
+      };
+      chrome.tabs.onUpdated.addListener(tabLoadListener);
     };
-
-    chrome.tabs.onUpdated.addListener(onTabUpdate);
+    chrome.runtime.onMessage.addListener(stateListener);
   });
 }
 
 // ─── Add bookmark form ────────────────────────────────────────────────────
 
-function showBookmarkForm(container, setPending) {
-  const grid = container.querySelector('#bookmarks-grid');
+function showBookmarkForm(container, site) {
+  const gridId = site === 'dishtv' ? '#bookmarks-dishtv' : '#bookmarks-d2h';
+  const grid = container.querySelector(gridId);
   if (!grid) return;
 
   grid.innerHTML = `
@@ -758,10 +988,18 @@ function showBookmarkForm(container, setPending) {
       <div class="form-error" id="bm-name-error"></div>
       <input type="url" id="bm-url" placeholder="https://..." autocomplete="off" />
       <div class="form-error" id="bm-url-error"></div>
-      <div id="bm-vc-group" class="bm-vc-hidden">
-        <input type="text" id="bm-vc" placeholder="VC or Mobile number" autocomplete="off" />
-        <div class="form-error" id="bm-vc-error"></div>
-      </div>
+      <select class="bookmark-type-select" id="bm-type">
+        <option value="prelogin">Pre-login</option>
+        <option value="postlogin">Post-login</option>
+      </select>
+      <input
+        type="text"
+        id="bm-vc"
+        class="bookmark-vc-input"
+        placeholder="VC or Mobile number"
+        autocomplete="off"
+        style="display: none"
+      />
       <div class="form-actions">
         <button class="btn-save">Save</button>
         <button class="btn-cancel">Cancel</button>
@@ -769,47 +1007,35 @@ function showBookmarkForm(container, setPending) {
     </div>
   `;
 
-  const vcGroup   = grid.querySelector('#bm-vc-group');
-  const urlInput  = grid.querySelector('#bm-url');
+  const typeSelect = grid.querySelector('#bm-type');
+  const vcInput    = grid.querySelector('#bm-vc');
+  const urlInput   = grid.querySelector('#bm-url');
 
-  // Derive type from URL path: /POST/ slug → postlogin, everything else → prelogin
-  function detectType(url) {
-    try { return new URL(url).pathname.includes('/POST/') ? 'postlogin' : 'prelogin'; }
-    catch { return 'prelogin'; }
-  }
-
-  function applyType(url) {
-    const type = detectType(url);
-    vcGroup.classList.toggle('bm-vc-hidden', type !== 'postlogin');
-    return type;
-  }
-
-  // Auto-fill URL from active tab and apply type immediately
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (urlInput) {
-      urlInput.value = tabs[0]?.url || '';
-      applyType(urlInput.value);
+  typeSelect?.addEventListener('change', () => {
+    const isPost = typeSelect.value === 'postlogin';
+    if (vcInput) {
+      vcInput.style.display = isPost ? 'block' : 'none';
+      if (!isPost) vcInput.value = '';
     }
   });
 
-  // Re-evaluate VC field visibility whenever the URL changes
-  urlInput?.addEventListener('input', () => applyType(urlInput.value));
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (urlInput) urlInput.value = tabs[0]?.url || '';
+  });
 
   grid.querySelector('.btn-cancel').addEventListener('click', () => {
-    renderBookmarksGrid(container, setPending);
+    renderBookmarksGrid(container);
   });
 
   grid.querySelector('.btn-save').addEventListener('click', async () => {
-    const nameInput = grid.querySelector('#bm-name');
-    const urlInput  = grid.querySelector('#bm-url');
-    const vcInput   = grid.querySelector('#bm-vc');
-    const nameErr   = grid.querySelector('#bm-name-error');
-    const urlErr    = grid.querySelector('#bm-url-error');
-    const vcErr     = grid.querySelector('#bm-vc-error');
+    const nameInput  = grid.querySelector('#bm-name');
+    const urlInputEl = grid.querySelector('#bm-url');
+    const vcInputEl  = grid.querySelector('#bm-vc');
+    const nameErr    = grid.querySelector('#bm-name-error');
+    const urlErr     = grid.querySelector('#bm-url-error');
 
     nameErr.textContent = '';
     urlErr.textContent  = '';
-    vcErr.textContent   = '';
 
     let valid = true;
 
@@ -818,70 +1044,112 @@ function showBookmarkForm(container, setPending) {
       valid = false;
     }
 
-    const urlVal = urlInput.value.trim();
+    const urlVal = urlInputEl.value.trim();
     if (!urlVal || (!urlVal.startsWith('http://') && !urlVal.startsWith('https://'))) {
       urlErr.textContent = 'Enter a valid URL starting with http:// or https://';
       valid = false;
     }
 
-    const type   = detectType(urlVal);
-    const vcVal  = vcInput?.value.trim() ?? '';
-    if (type === 'postlogin' && !vcVal) {
-      vcErr.textContent = 'VC or Mobile number is required.';
-      valid = false;
-    }
-
     if (!valid) return;
 
-    const existing = await getBookmarks();
+    const type  = typeSelect.value;
+    const vcVal = type === 'postlogin' ? (vcInputEl?.value.trim() ?? '') : '';
+
+    const existing = await getBookmarks(site);
     if (existing.length >= BOOKMARKS_MAX) return;
 
-    await saveBookmarks([...existing, {
+    await saveBookmarks(site, [...existing, {
       id:       genId(),
       name:     nameInput.value.trim(),
       url:      urlVal,
       type,
-      vcNumber: type === 'postlogin' ? vcVal : '',
+      vcNumber: vcVal,
     }]);
 
-    renderBookmarksGrid(container, setPending);
+    renderBookmarksGrid(container);
   });
 }
 
 // ─── Render bookmarks grid ────────────────────────────────────────────────
 
-async function renderBookmarksGrid(container, setPending) {
-  const grid = container.querySelector('#bookmarks-grid');
-  if (!grid) return;
-
-  const bookmarks = await getBookmarks();
-
-  let html = bookmarks.map(bookmarkTileHTML).join('');
-  if (bookmarks.length < BOOKMARKS_MAX) {
-    html += `<div class="bookmark-tile add-tile" id="add-bookmark-tile">+</div>`;
-  }
-  grid.innerHTML = html;
-
-  grid.querySelectorAll('.bookmark-tile:not(.add-tile)').forEach((tile) => {
+function wireBookmarkGroup(container, gridEl, site, bookmarks) {
+  gridEl.querySelectorAll('.bookmark-tile:not(.add-tile)').forEach((tile) => {
     tile.addEventListener('click', (e) => {
       if (e.target.closest('.tile-delete')) return;
       const bm = bookmarks.find((b) => b.id === tile.dataset.id);
-      if (bm) handleBookmarkClick(bm, setPending);
+      if (bm) handleBookmarkClick(bm);
     });
   });
 
-  grid.querySelectorAll('.tile-delete').forEach((btn) => {
+  gridEl.querySelectorAll('.tile-delete').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const updated = bookmarks.filter((b) => b.id !== btn.dataset.delete);
-      await saveBookmarks(updated);
-      renderBookmarksGrid(container, setPending);
+      await saveBookmarks(site, updated);
+      renderBookmarksGrid(container);
     });
   });
 
-  grid.querySelector('#add-bookmark-tile')?.addEventListener('click', () => {
-    showBookmarkForm(container, setPending);
+  gridEl.querySelectorAll('.add-tile').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      showBookmarkForm(container, tile.dataset.addSite);
+    });
   });
+}
+
+function renderBookmarkGroup(container, gridEl, site, bookmarks, canAdd) {
+  const addHint = site === 'dishtv'
+    ? 'Open a DishTV page to add bookmarks'
+    : 'Open a D2H page to add bookmarks';
+
+  let html = bookmarks.map(bookmarkTileHTML).join('');
+  if (canAdd && bookmarks.length < BOOKMARKS_MAX) {
+    html += `<div class="bookmark-tile add-tile" data-add-site="${site}">+</div>`;
+  } else if (!canAdd && bookmarks.length === 0) {
+    html = `<div class="live-empty">${addHint}</div>`;
+  }
+  gridEl.innerHTML = html;
+  wireBookmarkGroup(container, gridEl, site, bookmarks);
+}
+
+async function renderBookmarksGrid(container) {
+  const root = container.querySelector('#bookmarks-grid');
+  if (!root) return;
+
+  const { site: currentSite } = detectEnv(moduleCurrentTabUrl);
+  const canAddDishTV = currentSite === 'dishtv';
+  const canAddD2H    = currentSite === 'd2h';
+
+  const [dishtvBookmarks, d2hBookmarks] = await Promise.all([
+    getBookmarks('dishtv'),
+    getBookmarks('d2h'),
+  ]);
+
+  root.innerHTML = `
+    <div class="bookmarks-group">
+      <div class="section-label">DishTV</div>
+      <div class="bookmarks-grid" id="bookmarks-dishtv"></div>
+    </div>
+    <div class="bookmarks-group" style="margin-top: 12px;">
+      <div class="section-label">D2H</div>
+      <div class="bookmarks-grid" id="bookmarks-d2h"></div>
+    </div>
+  `;
+
+  renderBookmarkGroup(
+    container,
+    root.querySelector('#bookmarks-dishtv'),
+    'dishtv',
+    dishtvBookmarks,
+    canAddDishTV
+  );
+  renderBookmarkGroup(
+    container,
+    root.querySelector('#bookmarks-d2h'),
+    'd2h',
+    d2hBookmarks,
+    canAddD2H
+  );
 }
 
 // ─── Live section helpers ─────────────────────────────────────────────────
@@ -996,12 +1264,74 @@ async function openLiveDetail(call, container) {
 
 // ─── Page render ──────────────────────────────────────────────────────────
 
+let homeContainerRef = null;
+let homeCleanup = null;
+let moduleCurrentTabUrl = '';
+let moduleCurrentTabId = null;
+let homeActiveTabListenerRegistered = false;
+
+function applyThemeFromUrl(url) {
+  const { site, env } = detectEnv(url);
+  const body = document.body;
+  body.classList.remove('theme-dishtv', 'theme-d2h');
+  if (site === 'dishtv') body.classList.add('theme-dishtv');
+  else if (site === 'd2h')  body.classList.add('theme-d2h');
+  body.dataset.site = site;
+  body.dataset.env  = env;
+  body.dispatchEvent(new CustomEvent('envchange', { detail: { site, env } }));
+}
+
+function ensureHomeActiveTabListener() {
+  if (homeActiveTabListenerRegistered) return;
+  homeActiveTabListenerRegistered = true;
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type !== 'ACTIVE_TAB_CHANGED') return;
+    if (!homeContainerRef) return;
+    const app = document.getElementById('app');
+    if (app?.dataset?.page !== 'home') return;
+    renderHomePage(homeContainerRef, message.url, message.tabId);
+  });
+}
+
 /**
  * Render the home page into the given container.
  * @param {HTMLElement} container
  */
 export async function render(container) {
-  const { site, env } = getCurrentEnv();
+  homeContainerRef = container;
+  ensureHomeActiveTabListener();
+  await renderHomePage(container);
+}
+
+/**
+ * Full home page re-render (tab switch, env change, etc.).
+ * @param {HTMLElement} container
+ * @param {string} [tabUrl]
+ * @param {number} [tabId]
+ */
+async function renderHomePage(container, tabUrl, tabId) {
+  if (homeCleanup) {
+    homeCleanup();
+    homeCleanup = null;
+  }
+
+  homeContainerRef = container;
+  migrateOldBookmarks();
+
+  if (tabUrl === undefined || tabId === undefined) {
+    const tabs = await new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, resolve);
+    });
+    tabUrl = tabs[0]?.url ?? '';
+    tabId  = tabs[0]?.id ?? null;
+  }
+
+  moduleCurrentTabUrl = tabUrl;
+  moduleCurrentTabId  = tabId;
+
+  applyThemeFromUrl(tabUrl);
+
+  const { site, env } = detectEnv(tabUrl);
 
   container.innerHTML = `
     <div class="panel-header">
@@ -1022,7 +1352,7 @@ export async function render(container) {
     <div class="page-content">
       <div class="section" id="bookmarks-section">
         <div class="section-label">Bookmarks</div>
-        <div class="bookmarks-grid" id="bookmarks-grid"></div>
+        <div id="bookmarks-grid"></div>
       </div>
 
       <div class="section-divider"></div>
@@ -1102,10 +1432,12 @@ export async function render(container) {
     );
   });
 
+  wireFlushSessionButton(container.querySelector('#login-form-view'));
+
   const onLoginSuccess = async ({ detail }) => {
     const number = detail?.number;
     if (!number) return;
-    const { site, env } = detectEnv(currentTabUrl);
+    const { site, env } = detectEnv(moduleCurrentTabUrl);
     const key = getRecentsKey(site, env);
     const recents = await getLoginRecents(key);
     const updated = [number, ...recents.filter((n) => n !== number)].slice(0, RECENTS_MAX);
@@ -1121,23 +1453,19 @@ export async function render(container) {
     pendingLoginNumber = number;
     showLoginStatus(container, 'Initiating login…', '');
     setLoginLoading(container, true);
-    const { site } = detectEnv(currentTabUrl);
+    const { site } = detectEnv(moduleCurrentTabUrl);
     const loginType = site === 'd2h' ? 'D2H_LOGIN_INIT' : 'DISHTV_LOGIN_INIT';
     chrome.runtime.sendMessage({ type: loginType, number });
   });
 
   // ── Bookmarks ─────────────────────────────────────────────────────────────
-  let pendingBookmark = null;
-  const setPending = (val) => { pendingBookmark = val; };
-  renderBookmarksGrid(container, setPending);
+  renderBookmarksGrid(container);
 
   // ── Login section — timer ref (shared between refreshLoginSection + onMessage)
   const loginTimerRef = { timer: null };
 
   // ── Live section ──────────────────────────────────────────────────────────
   const liveCalls = [];
-  let currentTabId  = null;
-  let currentTabUrl = '';
 
   // Accordion toggles
   container.querySelectorAll('.live-accordion-header').forEach((header) => {
@@ -1155,10 +1483,10 @@ export async function render(container) {
   // Preserve checkbox
   const preserveCheckbox = container.querySelector('#live-preserve-checkbox');
   preserveCheckbox?.addEventListener('change', () => {
-    if (!currentTabId) return;
+    if (!moduleCurrentTabId) return;
     chrome.runtime.sendMessage({
       type:     'LIVE_SET_PRESERVE',
-      tabId:    currentTabId,
+      tabId:    moduleCurrentTabId,
       preserve: preserveCheckbox.checked,
     });
   });
@@ -1199,47 +1527,24 @@ export async function render(container) {
   };
 
   // ── Seed active-tab state ─────────────────────────────────────────────────
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    currentTabId  = tabs[0]?.id ?? null;
-    currentTabUrl = tabs[0]?.url ?? '';
-    const tabUrl  = currentTabUrl;
+  updateAemActions(container, moduleCurrentTabUrl);
+  refreshLoginSection(container, moduleCurrentTabUrl, loginTimerRef);
 
-    updateAemActions(container, tabUrl);
-    refreshLoginSection(container, tabUrl, loginTimerRef);
-
-    if (tabs[0]?.id) {
-      chrome.runtime.sendMessage({ type: 'LIVE_GET_CALLS', tabId: tabs[0].id }, (response) => {
-        if (response?.calls?.length) {
-          liveCalls.push(...response.calls);
-          renderLiveCalls(liveCalls, container);
-        }
-      });
-    }
-  });
+  if (moduleCurrentTabId) {
+    chrome.runtime.sendMessage({ type: 'LIVE_GET_CALLS', tabId: moduleCurrentTabId }, (response) => {
+      if (response?.calls?.length) {
+        liveCalls.push(...response.calls);
+        renderLiveCalls(liveCalls, container);
+      }
+    });
+  }
 
   // ── Message router ────────────────────────────────────────────────────────
   const onMessage = (message) => {
-    if (message.type === 'TAB_URL_CHANGED') {
-      currentTabUrl = message.url;
-      updateAemActions(container, message.url);
-      refreshLoginSection(container, message.url, loginTimerRef);
-
-    } else if (message.type === 'DISHTV_LOGIN_STATUS' || message.type === 'D2H_LOGIN_STATUS') {
+    if (message.type === 'DISHTV_LOGIN_STATUS' || message.type === 'D2H_LOGIN_STATUS') {
       handleLoginStatus(message);
 
     } else if (message.type === 'USER_STATE_UPDATE') {
-      if (pendingBookmark) {
-        const { vcNumber, brand: pendingBrand } = pendingBookmark;
-        pendingBookmark = null;
-        if (message.loggedIn) {
-          showPanelToast('Already logged in. Opened page anyway.');
-        } else {
-          const loginType = pendingBrand === 'd2h' ? 'D2H_LOGIN_INIT' : 'DISHTV_LOGIN_INIT';
-          chrome.runtime.sendMessage({ type: loginType, number: vcNumber });
-        }
-        return;
-      }
-
       // Guard against cross-tab contamination: only render if the message came
       // from the same hostname as the currently active tab
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -1249,48 +1554,39 @@ export async function render(container) {
           if (new URL(activeUrl).hostname !== new URL(sourceUrl).hostname) return;
         } catch (e) { return; }
 
+        moduleCurrentTabUrl = activeUrl;
+
         // Cancel fallback timer — we have a real answer from the correct tab
         clearTimeout(loginTimerRef.timer);
         if (message.loggedIn && message.userDetails) {
           renderLoggedInState(container, message.userDetails, message.site);
         } else {
-          const { site, env } = detectEnv(currentTabUrl);
+          const { site, env } = detectEnv(moduleCurrentTabUrl);
           renderLoginState(container, getRecentsKey(site, env));
         }
       });
 
-    } else if (message.type === 'ACTIVE_TAB_CHANGED') {
-      currentTabId = message.tabId;
-      liveCalls.length = 0;
-      clearAllLiveCalls(container);
-      chrome.runtime.sendMessage({ type: 'LIVE_GET_CALLS', tabId: message.tabId }, (response) => {
-        if (response?.calls?.length) {
-          liveCalls.push(...response.calls);
-          renderLiveCalls(liveCalls, container);
-        }
-      });
-
     } else if (message.type === 'LIVE_CALL_ADDED') {
-      if (message.tabId === currentTabId) {
+      if (message.tabId === moduleCurrentTabId) {
         liveCalls.push(message.call);
         appendLiveCall(message.call, liveCalls, container);
       }
 
     } else if (message.type === 'LIVE_CALL_UPDATED') {
-      if (message.tabId === currentTabId) {
+      if (message.tabId === moduleCurrentTabId) {
         const call = liveCalls.find((c) => c.id === message.id);
         if (call) call.status = message.status;
         updateCallStatus(message.id, message.status, container);
       }
 
     } else if (message.type === 'LIVE_CALL_COMPLETE') {
-      if (message.tabId === currentTabId) {
+      if (message.tabId === moduleCurrentTabId) {
         const call = liveCalls.find((c) => c.id === message.id);
         if (call) { call.responseBody = message.responseBody; call.complete = true; }
       }
 
     } else if (message.type === 'LIVE_CALLS_CLEARED') {
-      if (message.tabId === currentTabId) {
+      if (message.tabId === moduleCurrentTabId) {
         liveCalls.length = 0;
         clearAllLiveCalls(container);
       }
@@ -1305,14 +1601,19 @@ export async function render(container) {
   };
   document.body.addEventListener('envchange', onEnvChange);
 
-  // ── Cleanup on page unload ────────────────────────────────────────────────
   const observer = new MutationObserver(() => {
     if (!document.contains(container)) {
-      document.body.removeEventListener('envchange', onEnvChange);
-      document.removeEventListener('login-success', onLoginSuccess);
-      chrome.runtime.onMessage.removeListener(onMessage);
-      observer.disconnect();
+      if (homeCleanup) homeCleanup();
+      homeCleanup = null;
     }
   });
   observer.observe(document.body, { childList: true, subtree: true });
+
+  homeCleanup = () => {
+    document.body.removeEventListener('envchange', onEnvChange);
+    document.removeEventListener('login-success', onLoginSuccess);
+    chrome.runtime.onMessage.removeListener(onMessage);
+    observer.disconnect();
+    if (homeContainerRef === container) homeContainerRef = null;
+  };
 }

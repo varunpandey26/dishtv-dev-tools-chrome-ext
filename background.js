@@ -94,7 +94,11 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
   if (!tab.url) return;
   chrome.runtime.sendMessage({ type: 'TAB_URL_CHANGED', url: tab.url, tabId: activeInfo.tabId }).catch(() => {});
-  chrome.runtime.sendMessage({ type: 'ACTIVE_TAB_CHANGED', tabId: activeInfo.tabId }).catch(() => {});
+  chrome.runtime.sendMessage({
+    type: 'ACTIVE_TAB_CHANGED',
+    tabId: activeInfo.tabId,
+    url: tab.url,
+  }).catch(() => {});
   if (isMonitoredUrl(tab.url)) {
     await ensureDebuggerAttached(activeInfo.tabId);
   }
@@ -106,7 +110,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
       if (!activeTabs.length || activeTabs[0].id !== tabId) return;
       chrome.runtime.sendMessage({ type: 'TAB_URL_CHANGED', url: tab.url, tabId }).catch(() => {});
-      chrome.runtime.sendMessage({ type: 'ACTIVE_TAB_CHANGED', tabId }).catch(() => {});
+      chrome.runtime.sendMessage({
+        type: 'ACTIVE_TAB_CHANGED',
+        tabId,
+        url: tab.url,
+      }).catch(() => {});
     });
     // Re-attach on every completed navigation for monitored URLs
     if (isMonitoredUrl(tab.url)) {
@@ -273,24 +281,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'D2H_LOGIN_INIT') {
-    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs || !tabs[0]) {
         sendResponse({ success: false, error: 'No active tab found' });
         return;
       }
-      const tabId  = tabs[0].id;
-      const tabUrl = tabs[0].url;
+      const tabId = tabs[0].id;
 
-      try {
-        const loginUrl = `${new URL(tabUrl).origin}/login.html`;
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          return;
+        }
 
-        // Navigate to the login page first
-        await chrome.tabs.update(tabId, { url: loginUrl });
+        const currentUrl = tab.url || '';
+        const isOnLoginPage = currentUrl.includes('/login.html') ||
+                              currentUrl.includes('/login');
 
-        // Wait for load complete, then forward login start to content script
-        const listener = (updatedTabId, changeInfo) => {
-          if (updatedTabId !== tabId || changeInfo.status !== 'complete') return;
-          chrome.tabs.onUpdated.removeListener(listener);
+        const forwardLoginStart = (delayMs) => {
           setTimeout(async () => {
             await ensureDebuggerAttached(tabId);
             chrome.tabs.sendMessage(
@@ -298,18 +306,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               { type: 'D2H_LOGIN_START', number: message.number },
               (response) => {
                 if (chrome.runtime.lastError) {
-                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                  sendResponse({
+                    success: false,
+                    error: chrome.runtime.lastError.message,
+                  });
                 } else {
                   sendResponse({ success: true });
                 }
               }
             );
-          }, 2500);
+          }, delayMs);
         };
-        chrome.tabs.onUpdated.addListener(listener);
-      } catch (e) {
-        sendResponse({ success: false, error: e.message });
-      }
+
+        if (isOnLoginPage) {
+          forwardLoginStart(1000);
+          return;
+        }
+
+        try {
+          const loginUrl = `${new URL(tab.url).origin}/login.html`;
+          chrome.tabs.update(tabId, { url: loginUrl });
+
+          const listener = (updatedTabId, changeInfo) => {
+            if (updatedTabId !== tabId || changeInfo.status !== 'complete') return;
+            chrome.tabs.onUpdated.removeListener(listener);
+            forwardLoginStart(2500);
+          };
+          chrome.tabs.onUpdated.addListener(listener);
+        } catch (e) {
+          sendResponse({ success: false, error: e.message });
+        }
+      });
     });
     return true;
   }

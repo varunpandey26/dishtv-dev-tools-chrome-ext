@@ -50,6 +50,18 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isPopupAlreadyOpen() {
+  const popup = document.querySelector('.login-popup') ||
+                document.querySelector('.login-modal') ||
+                document.querySelector('#loginModal') ||
+                document.querySelector('[class*="login"][class*="popup"]') ||
+                document.querySelector('[class*="login"][class*="modal"]');
+  if (!popup) return false;
+  const style = getComputedStyle(popup);
+  return style.display !== 'none' &&
+         style.visibility !== 'hidden' &&
+         style.opacity !== '0';
+}
 
 // ── Main login flow ───────────────────────────────────────────────────────
 
@@ -59,10 +71,14 @@ function sleep(ms) {
  */
 async function initiateDishTVLogin(number) {
   try {
-    // Step 1 — Click login button
-    const loginBtn = await waitForElement('#dishtv-LoginBtn', 5000);
-    loginBtn.click();
-    await sleep(2000);
+    // Step 1 — Click login button only if popup not already open
+    if (!isPopupAlreadyOpen()) {
+      const loginBtn = await waitForElement('#dishtv-LoginBtn', 5000);
+      loginBtn.click();
+      await sleep(2000);
+    } else {
+      await sleep(500);
+    }
 
     // Step 2 — Fill userid input (character-by-character to satisfy framework listeners)
     const userIdInput = await waitForElement('#userid', 5000);

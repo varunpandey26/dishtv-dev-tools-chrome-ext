@@ -68,13 +68,17 @@ function sleep(ms) {
  */
 async function initiateD2HLogin(number) {
   try {
+    const currentPath = window.location.pathname;
+    const isAlreadyOnLoginPage = currentPath.includes('/login') ||
+                                 currentPath === '/login.html';
+
     // Step 1 — Detect number type
     // Mobile: starts with 6–9, exactly 10 digits
     // VC: anything else (may be longer than 10 digits)
     const isMobile = /^[6-9]\d{9}$/.test(number);
 
     // Step 2 — Wait for page JS to settle
-    await sleep(1000);
+    await sleep(isAlreadyOnLoginPage ? 500 : 1000);
 
     // Step 3 — Select correct radio button
     if (isMobile) {
