@@ -1006,7 +1006,7 @@ export async function render(container) {
   container.innerHTML = `
     <div class="panel-header">
       <div class="logo">
-        <div class="logo-mark">SE</div>
+        <div class="logo-mark">VE</div>
         <span class="logo-text">Project Dish</span>
       </div>
       <div class="header-actions">

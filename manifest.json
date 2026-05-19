@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "SADIST's Ext - Project Dish",
+  "name": "VRWD's Ext - Project Dish",
   "version": "1.0.0",
   "description": "Internal developer productivity tools for DishTV and D2H teams.",
 
@@ -28,7 +28,7 @@
   },
 
   "action": {
-    "default_title": "SADIST's Ext - Project Dish",
+    "default_title": "VRWD's Ext - Project Dish",
     "default_icon": {
       "16": "assets/icons/icon16.png",
       "48": "assets/icons/icon48.png",
