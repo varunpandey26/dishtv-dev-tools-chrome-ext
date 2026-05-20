@@ -11,6 +11,8 @@ const PAGE_REGISTRY = {
   // Feature overlays — register here as they are built
   'auto-login':      () => import('../pages/features/placeholder.js'),
   'api-inspector':   () => import('../pages/features/placeholder.js'),
+  'tracking-detail':  () => import('../pages/features/tracking-detail.js'),
+  'adobe-tracking':   () => import('../pages/features/adobe-tracking.js'),
   // placeholder fallback for any unregistered page name
   _fallback:     () => import('../pages/features/placeholder.js'),
 };
@@ -20,6 +22,9 @@ const history = [];
 
 /** The container element all pages render into */
 let appEl = null;
+
+/** Active page module (for mount/unmount lifecycle) */
+let activePageModule = null;
 
 /**
  * Initialise the router. Must be called once after the DOM is ready.
@@ -63,11 +68,19 @@ export async function goBack() {
 
 /** Internal: import + render the given page module */
 async function _renderPage(page, params) {
+  if (activePageModule?.unmount) {
+    activePageModule.unmount();
+  }
+  activePageModule = null;
+
   const factory = PAGE_REGISTRY[page] ?? PAGE_REGISTRY['_fallback'];
 
   const module = await factory();
 
-  if (typeof module.render !== 'function') {
+  const usesMountOnly = typeof module.mount === 'function'
+    && typeof module.render !== 'function';
+
+  if (!usesMountOnly && typeof module.render !== 'function') {
     console.error(`[Router] Page module "${page}" does not export a render() function.`);
     return;
   }
@@ -76,5 +89,13 @@ async function _renderPage(page, params) {
   appEl.dataset.page = page;
   appEl.dataset.params = JSON.stringify(params);
 
-  await module.render(appEl, params);
+  activePageModule = module;
+
+  if (typeof module.render === 'function') {
+    await module.render(appEl, params);
+  }
+
+  if (typeof module.mount === 'function') {
+    module.mount(appEl, params);
+  }
 }

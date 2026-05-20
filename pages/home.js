@@ -1282,6 +1282,42 @@ async function openLiveDetail(call, container) {
   await renderDetail(container, { call });
 }
 
+// ─── Tools section ──────────────────────────────────────────────────────────
+
+function toolsSectionHTML() {
+  return `
+    <div class="section-divider"></div>
+    <div class="section" id="tools-section">
+      <div class="section-label">TOOLS</div>
+      <div class="tools-grid">
+        <button type="button" class="tool-btn" id="tool-tracking">
+          <i class="ti ti-activity"></i>
+          <span class="tool-btn-label">Adobe Tracking</span>
+        </button>
+        <button type="button" class="tool-btn" disabled>
+          <i class="ti ti-tool"></i>
+          <span class="tool-btn-label">Coming Soon</span>
+        </button>
+        <button type="button" class="tool-btn" disabled>
+          <i class="ti ti-tool"></i>
+          <span class="tool-btn-label">Coming Soon</span>
+        </button>
+        <button type="button" class="tool-btn" disabled>
+          <i class="ti ti-tool"></i>
+          <span class="tool-btn-label">Coming Soon</span>
+        </button>
+      </div>
+    </div>
+    <div class="section-divider"></div>
+  `;
+}
+
+function wireToolsButtons(container) {
+  container.querySelector('#tool-tracking')?.addEventListener('click', () => {
+    navigateTo('adobe-tracking');
+  });
+}
+
 // ─── Page render ──────────────────────────────────────────────────────────
 
 let homeContainerRef = null;
@@ -1368,6 +1404,8 @@ async function renderHomePage(container, tabUrl, tabId) {
     ${aemActionsHTML()}
     ${loginSectionHTML()}
     <div class="section-divider login-section-hidden" id="login-section-divider"></div>
+
+    ${toolsSectionHTML()}
 
     <div class="page-content">
       <div class="section" id="bookmarks-section">
@@ -1480,6 +1518,9 @@ async function renderHomePage(container, tabUrl, tabId) {
 
   // ── Bookmarks ─────────────────────────────────────────────────────────────
   renderBookmarksGrid(container);
+
+  // ── Tools ─────────────────────────────────────────────────────────────────
+  wireToolsButtons(container);
 
   // ── Login section — timer ref (shared between refreshLoginSection + onMessage)
   const loginTimerRef = { timer: null };
@@ -1617,7 +1658,7 @@ async function renderHomePage(container, tabUrl, tabId) {
   // ── Env change ────────────────────────────────────────────────────────────
   const onEnvChange = ({ detail: { site, env } }) => {
     syncActivePills(container, site, env);
-    // Login section visibility is driven by TAB_URL_CHANGED; pills-only sync here
+    updateTrackingVisibility(container, site);
   };
   document.body.addEventListener('envchange', onEnvChange);
 

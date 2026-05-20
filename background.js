@@ -368,6 +368,58 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'TRACKING_DO_SCAN') {
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      if (!tabs || !tabs[0]) return;
+      const tabId = tabs[0].id;
+      const sourceUrl = message.sourceUrl;
+
+      await ensureDebuggerAttached(tabId);
+
+      chrome.debugger.sendCommand(
+        { tabId },
+        'Runtime.evaluate',
+        {
+          expression: `
+            (function() {
+              const TRACKED = ['pageLoaded','linkClicked','buttonClick'];
+              const layer = window.adobeDataLayer || [];
+              const filtered = layer.filter(
+                e => e && e.event && TRACKED.includes(e.event)
+              );
+              return JSON.stringify(filtered);
+            })()
+          `,
+          returnByValue: true,
+        },
+        (result) => {
+          if (chrome.runtime.lastError || !result) return;
+          try {
+            const entries = JSON.parse(result.result?.value || '[]');
+            chrome.runtime.sendMessage({
+              type: 'TRACKING_DATA',
+              entries,
+              sourceUrl,
+            }).catch(() => {});
+          } catch (e) {
+            console.error('Tracking parse error:', e);
+          }
+        }
+      );
+    });
+    return true;
+  }
+
+  if (message.type === 'TRACKING_DATA') {
+    chrome.runtime.sendMessage(message).catch(() => {});
+    return true;
+  }
+
+  if (message.type === 'TRACKING_CLEAR') {
+    chrome.runtime.sendMessage(message).catch(() => {});
+    return true;
+  }
+
   if (message.type === 'LIVE_SET_PRESERVE') {
     initTabCalls(message.tabId).preserve = message.preserve;
     sendResponse({ ok: true });

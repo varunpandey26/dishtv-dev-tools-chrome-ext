@@ -64,6 +64,15 @@
     },
     {
       "matches": [
+        "https://www.dishtv.in/*",
+        "https://stage-aem.dishtv.in/*",
+        "https://dev-aem.dishtv.in/*"
+      ],
+      "js": ["content-scripts/dishtv-tracking.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://www.d2h.com/*",
         "https://stage-aem.d2h.com/*",
         "https://dev-aem.d2h.com/*"

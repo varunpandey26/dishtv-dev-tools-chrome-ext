@@ -1,4 +1,5 @@
 /* sidepanel.css — Material Design 3 theme */
+@import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css');
 
 /* ─── CSS Variables ──────────────────────────────────────────────────────── */
 :root {
@@ -623,8 +624,8 @@ code, pre {
 /* ─── Tools Grid ─────────────────────────────────────────────────────────── */
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
 
 .tool-tile {
@@ -1487,3 +1488,544 @@ details > summary.json-toggle::marker                 { display: none; }
 
 details[open] > summary.json-toggle::before     { content: '▼ '; }
 details:not([open]) > summary.json-toggle::before { content: '▶ '; }
+
+/* ─── Adobe Tracking Section ─────────────────────────────────────────────── */
+.tracking-section-hidden {
+  display: none;
+}
+
+.tracking-section {
+  margin-top: 4px;
+}
+
+.tracking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tracking-counter {
+  background: var(--accent-container);
+  color: var(--accent);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.tracking-filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.tracking-tab {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font);
+}
+
+.tracking-tab.active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.tracking-list {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px var(--shadow);
+  overflow: hidden;
+}
+
+.tracking-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tracking-row:hover {
+  background: var(--accent-light);
+}
+
+.tracking-row:last-child {
+  border-bottom: none;
+}
+
+.tracking-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tracking-status-fired {
+  background: #16a34a;
+}
+
+.tracking-status-pending {
+  background: #f59e0b;
+}
+
+.tracking-status-unknown {
+  background: var(--border);
+}
+
+.tracking-event-badge {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.tracking-event-page {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.tracking-event-link {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tracking-event-other {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.badge-btn {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.tracking-identifier {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracking-source {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tracking-not-fired {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* ─── Tracking Detail ────────────────────────────────────────────────────── */
+.tracking-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+
+.tracking-detail-status {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.tracking-detail-status-fired {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.tracking-detail-status-not-fired {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tracking-identifier-row {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 8px 0 4px 0;
+}
+
+.tracking-meta-row {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+
+.tracking-payload-card {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px var(--shadow);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.tracking-payload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+
+.tracking-payload-header:hover {
+  background: var(--accent-light);
+}
+
+.tracking-payload-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracking-payload-body {
+  padding: 12px 14px;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.tracking-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 0;
+  transition: color 0.15s;
+  font-family: var(--font);
+}
+
+.tracking-copy-btn:hover {
+  color: var(--accent);
+}
+
+.json-enriched {
+  background: #fef9c3;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.json-changed {
+  background: #fee2e2;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.json-original {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-left: 6px;
+}
+
+.badge-enriched {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+/* ─── Home TOOLS grid ──────────────────────────────────────────────────────── */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+/* ─── Adobe Tracking sub-page ──────────────────────────────────────────────── */
+.tracking-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tracking-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tracking-preserve {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.tracking-preserve input {
+  cursor: pointer;
+}
+
+.btn-scan {
+  width: 100%;
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 0;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: background 0.2s;
+  font-family: var(--font);
+}
+
+.btn-scan:hover {
+  filter: brightness(0.92);
+}
+
+.adobe-tracking-page .tracking-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.adobe-tracking-counter-hidden {
+  display: none;
+}
+
+.adobe-tracking-counter-visible {
+  display: block;
+}
+
+.adobe-tracking-page .tracking-filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.adobe-tracking-counter-visible.tracking-filter-tabs {
+  display: flex;
+}
+
+.tracking-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+  padding: 24px 0;
+}
+
+.tracking-accordion {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px var(--shadow);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.tracking-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.tracking-copy-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.tracking-copy-btn:hover {
+  opacity: 1;
+}
+
+.tracking-accordion-header:hover {
+  background: var(--accent-light);
+}
+
+.tracking-accordion-body {
+  padding: 0 12px 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.tracking-accordion-body-hidden {
+  display: none;
+}
+
+.adobe-tracking-page .tracking-identifier {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracking-toggle-arrow {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.tracking-toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+.tracking-loading {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 24px 0;
+  font-style: italic;
+}
+
+.tracking-loading-dots {
+  display: inline-block;
+  animation: tracking-dots-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes tracking-dots-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.tracking-counter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tracking-fired-count {
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.tracking-accordion-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tracking-accordion-dot-fired {
+  background: #16a34a;
+}
+
+.tracking-accordion-dot-pending {
+  background: #f59e0b;
+}
+
+.tracking-accordion-status {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.tracking-accordion-status-fired {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.tracking-accordion-status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tracking-payload-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0 0 8px 0;
+}
+
+.tracking-meta-line {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.tool-btn {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px var(--shadow);
+  padding: 14px 10px;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.tool-btn:hover:not(:disabled) {
+  background: var(--accent-container);
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tool-btn i {
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.tool-btn:disabled i {
+  color: var(--text-muted);
+}
+
+.tool-btn-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+}
