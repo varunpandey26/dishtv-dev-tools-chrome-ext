@@ -80,61 +80,23 @@ async function initiateDishTVLogin(number) {
       await sleep(500);
     }
 
-    // Step 2 — Fill userid input (character-by-character to satisfy framework listeners)
+    // Step 2 — Fill userid input
     const userIdInput = await waitForElement('#userid', 5000);
     userIdInput.focus();
     await sleep(300);
 
-    // Clear existing value first
-    userIdInput.value = '';
+    const nativeInputSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    ).set;
+
+    nativeInputSetter.call(userIdInput, '');
     userIdInput.dispatchEvent(new Event('input', { bubbles: true }));
     await sleep(200);
 
-    // Type each character one by one simulating real keyboard input
-    for (const char of number) {
-      // keydown
-      userIdInput.dispatchEvent(new KeyboardEvent('keydown', {
-        key: char,
-        code: `Digit${char}`,
-        keyCode: char.charCodeAt(0),
-        which: char.charCodeAt(0),
-        bubbles: true,
-        cancelable: true
-      }));
-      await sleep(30);
-
-      // keypress
-      userIdInput.dispatchEvent(new KeyboardEvent('keypress', {
-        key: char,
-        code: `Digit${char}`,
-        keyCode: char.charCodeAt(0),
-        which: char.charCodeAt(0),
-        bubbles: true,
-        cancelable: true
-      }));
-      await sleep(30);
-
-      // Actually append character to value
-      userIdInput.value = userIdInput.value + char;
-      userIdInput.dispatchEvent(new Event('input', { bubbles: true }));
-      await sleep(30);
-
-      // keyup
-      userIdInput.dispatchEvent(new KeyboardEvent('keyup', {
-        key: char,
-        code: `Digit${char}`,
-        keyCode: char.charCodeAt(0),
-        which: char.charCodeAt(0),
-        bubbles: true,
-        cancelable: true
-      }));
-
-      // Small random delay between keystrokes to mimic human typing
-      await sleep(80 + Math.floor(Math.random() * 60));
-    }
-
-    // Final change event after all characters typed
+    nativeInputSetter.call(userIdInput, number);
+    userIdInput.dispatchEvent(new Event('input', { bubbles: true }));
     userIdInput.dispatchEvent(new Event('change', { bubbles: true }));
+    userIdInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
     await sleep(800);
 
     // Step 3 — Set up OTP response listener BEFORE clicking Get OTP
