@@ -237,18 +237,38 @@ function analyzeUrl(tabUrl) {
   // ── Publish domain ─────────────────────────────────────────────────────
   const { site, env } = detectEnv(tabUrl);
   if (site !== 'unknown' && env !== 'unknown') {
-    const pagePath  = pathname === '/' ? '' : pathname;
-    const prefix    = CONTENT_PREFIX[site];
-    const domain    = AUTHOR_DOMAIN_BY_ENV[env];
-    const adminPath = pagePath.endsWith('.html') ? pagePath.slice(0, -5) : pagePath;
-    const fullPath  = prefix + pagePath;
-    const cleanPath = fullPath.endsWith('.html') ? fullPath.slice(0, -5) : fullPath;
+    let pagePath = pathname || '';
+
+    // Strip .html extension if present
+    if (pagePath.endsWith('.html')) {
+      pagePath = pagePath.slice(0, -5);
+    }
+
+    if (site === 'dishtv') {
+      // DishTV root → /homepage
+      if (pagePath === '/' || pagePath === '') {
+        pagePath = '/homepage';
+      }
+    } else if (site === 'd2h') {
+      // D2H root → '' (prefix already has /homepage)
+      if (pagePath === '/' || pagePath === '') {
+        pagePath = '';
+      }
+    } else if (pagePath === '/') {
+      pagePath = '';
+    }
+
+    const prefix       = CONTENT_PREFIX[site];
+    const domain       = AUTHOR_DOMAIN_BY_ENV[env];
+    const adminPath    = pagePath;
+    const contentPath  = prefix + pagePath;
+
     return {
       isAuthor: false, env, brand: site, mode: 'publish',
       authorUrls: {
-        edit:       `https://${domain}/editor.html${prefix}${pagePath}.html`,
-        admin:      `https://${domain}/sites.html${prefix}${adminPath}`,
-        properties: `https://${domain}/mnt/overlay/wcm/core/content/sites/properties.html?item=${encodeURIComponent(cleanPath)}`,
+        edit:       `https://${domain}/editor.html${contentPath}.html`,
+        admin:      `https://${domain}/sites.html${contentPath}`,
+        properties: `https://${domain}/mnt/overlay/wcm/core/content/sites/properties.html?item=${encodeURIComponent(contentPath)}`,
       },
       liveUrl: null,
     };
